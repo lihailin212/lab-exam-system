@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import os
 from app.database import engine, Base
 from app.routers import auth, users, exams, questions, records
 from app.models import User
@@ -25,8 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Mount static files (create directory if not exists)
+static_dir = os.path.join(os.path.dirname(__file__), "static", "images")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
 # Include routers
 app.include_router(auth.router)
