@@ -11,9 +11,52 @@ from app.database import get_db
 from app.schemas import QuestionCreate, QuestionUpdate, QuestionResponse
 from app.crud import create_question, get_questions, get_question, update_question, delete_question
 from app.auth import get_current_user, get_current_admin
-from app.models import User, Exam
+from app.models import User, Exam, Question
+from app.utils.importer import import_questions
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
+
+
+@router.post("/import/exam/{exam_id}")
+async def import_questions_api(
+    exam_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Import questions from uploaded file (Excel, Word, or TXT)"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="考核不存在")
+    
+    try:
+        file_content = await file.read()
+        questions_data, errors = import_questions(file_content, file.filename)
+        
+        if not questions_data and errors:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"导入失败: {errors[0].get('error') if errors else '文件格式错误'}"
+            )
+        
+        created_questions = []
+        for q_data in questions_data:
+            question = create_question(db, exam_id, QuestionCreate(**q_data))
+            created_questions.append(question)
+        
+        return {
+            "success": True,
+            "message": f"成功导入 {len(created_questions)} 道题目",
+            "total": len(questions_data),
+            "success_count": len(created_questions),
+            "error_count": len(errors),
+            "errors": errors[:10]
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
 
 
 @router.post("/exam/{exam_id}", response_model=QuestionResponse)

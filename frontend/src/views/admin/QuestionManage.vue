@@ -32,6 +32,7 @@
           <h3>题目管理 - {{ examInfo?.title }}</h3>
           <div>
             <el-button type="primary" @click="showAddDialog">添加题目</el-button>
+            <el-button type="success" @click="showImportDialog">批量导入</el-button>
             <el-button @click="$router.push('/admin/exams')">返回</el-button>
           </div>
         </div>
@@ -138,6 +139,65 @@
         <el-button size="small" @click="insertImage">插入图片</el-button>
       </div>
     </el-dialog>
+
+    <!-- Import Dialog -->
+    <el-dialog v-model="showImportDialog" title="批量导入题目" width="600px">
+      <div class="import-tip">
+        <p>请上传 Excel、Word 或 TXT 文件进行批量导入</p>
+        <el-button type="primary" link @click="downloadTemplate">
+          下载导入模板
+        </el-button>
+      </div>
+      
+      <el-upload
+        v-if="!importResult"
+        ref="uploadRef"
+        :auto-upload="false"
+        :on-change="handleImportFileChange"
+        :limit="1"
+        accept=".xlsx,.xls,.docx,.txt,.csv"
+      >
+        <el-button type="primary">选择文件</el-button>
+        <template #tip>
+          <div class="el-upload__tip">
+            支持 .xlsx, .xls, .docx, .txt, .csv 格式
+          </div>
+        </template>
+      </el-upload>
+
+      <div v-if="selectedFile" class="selected-file">
+        <p>已选择文件: <strong>{{ selectedFile.name }}</strong></p>
+        <el-button 
+          v-if="!importing && !importResult" 
+          type="success" 
+          @click="handleImport"
+          :loading="importing"
+        >
+          开始导入
+        </el-button>
+      </div>
+
+      <div v-if="importResult" class="import-result">
+        <el-alert
+          :title="importResult.success ? '导入成功' : '导入完成'"
+          :type="importResult.success ? 'success' : 'warning'"
+          :description="importResult.message"
+          show-icon
+        />
+        <div v-if="importResult.errors && importResult.errors.length" class="import-errors">
+          <h4>错误列表（前10条）:</h4>
+          <ul>
+            <li v-for="(err, idx) in importResult.errors" :key="idx">
+              第{{ err.row }}行: {{ err.error }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="closeImportDialog">关闭</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -175,6 +235,12 @@ const form = reactive({
   explanation: '',
   score: 10
 })
+
+const showImportDialog = ref(false)
+const importRef = ref(null)
+const selectedFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
 
 const rules = {
   content: [{ required: true, message: '请输入题干', trigger: 'blur' }],
@@ -319,6 +385,52 @@ const handleDelete = async (question) => {
     fetchData()
   } catch {}
 }
+
+const handleImportFileChange = (file) => {
+  selectedFile.value = file.raw
+  importResult.value = null
+}
+
+const handleImport = async () => {
+  if (!selectedFile.value) {
+    ElMessage.warning('请先选择文件')
+    return
+  }
+  
+  importing.value = true
+  try {
+    const res = await questionsAPI.import(examId, selectedFile.value)
+    importResult.value = res
+    if (res.success_count > 0) {
+      ElMessage.success(res.message)
+      fetchData()
+    } else if (res.error_count > 0) {
+      ElMessage.warning(res.message)
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
+const downloadTemplate = () => {
+  const templateContent = `题型,题干,选项,答案,解析,分值
+single,示例单选题,["A:选项A","B:选项B","C:选项C","D:选项D"],A,这是解析,10
+multiple,示例多选题,["A:选项A","B:选项B","C:选项C","D:选项D"],A,B,这是解析,10
+judgment,示例判断题,,正确,这是解析,5`
+
+  const link = document.createElement('a')
+  link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + templateContent)
+  link.download = '导入模板.csv'
+  link.click()
+}
+
+const closeImportDialog = () => {
+  showImportDialog.value = false
+  selectedFile.value = null
+  importResult.value = null
+}
 </script>
 
 <style scoped>
@@ -363,5 +475,50 @@ const handleDelete = async (question) => {
   max-width: 100%;
   max-height: 200px;
   margin-bottom: 10px;
+}
+
+.import-tip {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.import-tip p {
+  margin: 0 0 10px 0;
+  color: #606266;
+}
+
+.selected-file {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f0f9eb;
+  border-radius: 4px;
+}
+
+.selected-file p {
+  margin: 0 0 10px 0;
+}
+
+.import-result {
+  margin-top: 20px;
+}
+
+.import-errors {
+  margin-top: 15px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.import-errors h4 {
+  margin: 10px 0;
+  color: #f56c6c;
+}
+
+.import-errors ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #909399;
+  font-size: 13px;
 }
 </style>

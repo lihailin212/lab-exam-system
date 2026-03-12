@@ -78,7 +78,15 @@ export const questionsAPI = {
     return api.post('/questions/upload-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-  }
+  },
+  import: (examId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/questions/import/exam/${examId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  get: (examId) => api.get(`/questions/exam/${examId}`)
 }
 
 // Records API
