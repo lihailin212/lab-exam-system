@@ -114,7 +114,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { useUserStore } from '../stores/user'
+import { useUserStore } from '../../stores/user'
 import { examsAPI, recordsAPI } from '../api'
 
 const router = useRouter()
