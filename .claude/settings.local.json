@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add -A)",
+      "Bash(git commit -m \"fix: 修复admin目录下的stores路径导入错误\")"
+    ]
+  }
+}

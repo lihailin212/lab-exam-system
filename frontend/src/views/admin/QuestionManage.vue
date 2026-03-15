@@ -205,7 +205,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { examsAPI, questionsAPI } from '../api'
+import { examsAPI, questionsAPI } from '@/api'
 
 const router = useRouter()
 const route = useRoute()

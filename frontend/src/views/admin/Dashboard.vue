@@ -98,8 +98,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { useUserStore } from '../../stores/user'
-import { recordsAPI } from '../api'
+import { useUserStore } from '@/stores/user'
+import { recordsAPI } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
