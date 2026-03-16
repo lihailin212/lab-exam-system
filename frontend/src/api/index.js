@@ -46,7 +46,14 @@ export const usersAPI = {
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
-  resetPassword: (id, password) => api.post(`/users/reset-password/${id}`, null, { params: { new_password: password } })
+  resetPassword: (id, password) => api.post(`/users/reset-password/${id}`, null, { params: { new_password: password } }),
+  import: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/users/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
 }
 
 // Exams API

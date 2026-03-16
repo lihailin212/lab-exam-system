@@ -39,7 +39,10 @@
           <template #header>
             <div class="card-header">
               <span>员工列表</span>
-              <el-button type="primary" @click="showAddDialog">添加员工</el-button>
+              <div>
+                <el-button type="primary" @click="showAddDialog">添加员工</el-button>
+                <el-button type="success" @click="showImportDialog">批量导入</el-button>
+              </div>
             </div>
           </template>
           
@@ -120,6 +123,67 @@
         <el-button type="primary" @click="handleResetPwd" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- Import Dialog -->
+    <el-dialog v-model="importDialogVisible" title="批量导入员工" width="600px">
+      <div class="import-tip">
+        <p>请上传 Excel 文件进行批量导入</p>
+        <p>文件格式：工号,姓名,密码,角色,状态</p>
+        <p>示例：1001,张三,123456,员工,启用</p>
+        <el-button type="primary" link @click="downloadUserTemplate">
+          下载导入模板
+        </el-button>
+      </div>
+
+      <el-upload
+        v-if="!importResult"
+        ref="importRef"
+        :auto-upload="false"
+        :on-change="handleImportFileChange"
+        :limit="1"
+        accept=".xlsx,.xls"
+      >
+        <el-button type="primary">选择文件</el-button>
+        <template #tip>
+          <div class="el-upload__tip">
+            支持 .xlsx, .xls 格式
+          </div>
+        </template>
+      </el-upload>
+
+      <div v-if="selectedFile" class="selected-file">
+        <p>已选择文件: <strong>{{ selectedFile.name }}</strong></p>
+        <el-button
+          v-if="!importing && !importResult"
+          type="success"
+          @click="handleImport"
+          :loading="importing"
+        >
+          开始导入
+        </el-button>
+      </div>
+
+      <div v-if="importResult" class="import-result">
+        <el-alert
+          :title="importResult.success ? '导入成功' : '导入完成'"
+          :type="importResult.success ? 'success' : 'warning'"
+          :description="importResult.message"
+          show-icon
+        />
+        <div v-if="importResult.errors && importResult.errors.length" class="import-errors">
+          <h4>错误列表（前10条）:</h4>
+          <ul>
+            <li v-for="(err, idx) in importResult.errors" :key="idx">
+              第{{ err.row }}行: {{ err.error }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="closeImportDialog">关闭</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -143,6 +207,13 @@ const pwdDialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const currentUser = ref(null)
+
+// Import
+const importDialogVisible = ref(false)
+const importRef = ref(null)
+const selectedFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
 
 const form = reactive({
   username: '',
@@ -266,11 +337,62 @@ const handleDelete = async (user) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
+
     await usersAPI.delete(user.id)
     ElMessage.success('删除成功')
     fetchUsers()
   } catch {}
+}
+
+// Import functions
+const showImportDialog = () => {
+  importDialogVisible.value = true
+}
+
+const handleImportFileChange = (file) => {
+  selectedFile.value = file.raw
+  importResult.value = null
+}
+
+const handleImport = async () => {
+  if (!selectedFile.value) {
+    ElMessage.warning('请先选择文件')
+    return
+  }
+
+  importing.value = true
+  try {
+    const res = await usersAPI.import(selectedFile.value)
+    importResult.value = res
+    if (res.imported_count > 0) {
+      ElMessage.success(res.message)
+      fetchUsers()
+    } else if (res.error_count > 0) {
+      ElMessage.warning(res.message)
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
+const downloadUserTemplate = () => {
+  const templateContent = `工号,姓名,密码,角色,状态
+1001,张三,123456,员工,启用
+1002,李四,123456,员工,启用
+1003,王五,123456,管理员,是`
+
+  const link = document.createElement('a')
+  link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + templateContent)
+  link.download = '员工导入模板.csv'
+  link.click()
+}
+
+const closeImportDialog = () => {
+  importDialogVisible.value = false
+  selectedFile.value = null
+  importResult.value = null
 }
 
 const handleLogout = () => {
@@ -304,5 +426,51 @@ const handleLogout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.import-tip {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.import-tip p {
+  margin: 0 0 10px 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.selected-file {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f0f9eb;
+  border-radius: 4px;
+}
+
+.selected-file p {
+  margin: 0 0 10px 0;
+}
+
+.import-result {
+  margin-top: 20px;
+}
+
+.import-errors {
+  margin-top: 15px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.import-errors h4 {
+  margin: 10px 0;
+  color: #f56c6c;
+}
+
+.import-errors ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #909399;
+  font-size: 13px;
 }
 </style>

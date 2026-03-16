@@ -183,7 +183,7 @@
       
       <el-upload
         v-if="!importResult"
-        ref="uploadRef"
+        ref="importRef"
         :auto-upload="false"
         :on-change="handleImportFileChange"
         :limit="1"
@@ -539,9 +539,10 @@ const handleImport = async () => {
 
 const downloadTemplate = () => {
   const templateContent = `题型,题干,选项,答案,解析,分值
-single,示例单选题,["A:选项A","B:选项B","C:选项C","D:选项D"],A,这是解析,10
-multiple,示例多选题,["A:选项A","B:选项B","C:选项C","D:选项D"],A,B,这是解析,10
-judgment,示例判断题,,正确,这是解析,5`
+single,示例单选题,A:选项A|B:选项B|C:选项C|D:选项D,A,这是解析,10
+multiple,示例多选题,A:选项A|B:选项B|C:选项C|D:选项D,A,B,C,这是解析,10
+judgment,示例判断题,,正确,这是解析,5
+shared_option,示例共用选项题,,A,这是共用选项题的题干，选项从共用选项组中选择,10`
 
   const link = document.createElement('a')
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + templateContent)

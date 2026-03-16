@@ -48,6 +48,8 @@ def validate_question_type(qtype: str) -> str:
         return 'multiple'
     elif qtype in ['judgment', '判断', '判断题']:
         return 'judgment'
+    elif qtype in ['shared_option', '共用选项', '共用选项题']:
+        return 'shared_option'
     raise ValueError(f"未知题型: {qtype}")
 
 
@@ -73,6 +75,11 @@ def parse_single_row(
     if question_type == 'judgment':
         options = parse_judgment_options(options_str)
         answer = "true" if answer in ["正确", "true", "True", "1", "T"] else "false"
+    elif question_type == 'shared_option':
+        # 共用选项题不需要选项，只存储空数组
+        options = []
+        if ',' in answer:
+            answer = answer.split(',')[0]
     else:
         options = parse_options(options_str)
         if question_type == 'single' and ',' in answer:
