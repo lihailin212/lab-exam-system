@@ -89,6 +89,15 @@ export const questionsAPI = {
   get: (examId) => api.get(`/questions/exam/${examId}`)
 }
 
+// Shared Option Groups API
+export const sharedOptionGroupsAPI = {
+  list: (examId) => api.get(`/questions/shared-option-groups/exam/${examId}`),
+  create: (examId, data) => api.post(`/questions/shared-option-groups/exam/${examId}`, data),
+  update: (id, data) => api.put(`/questions/shared-option-groups/${id}`, data),
+  delete: (id) => api.delete(`/questions/shared-option-groups/${id}`),
+  get: (id) => api.get(`/questions/shared-option-groups/${id}`)
+}
+
 // Records API
 export const recordsAPI = {
   my: () => api.get('/records/my'),

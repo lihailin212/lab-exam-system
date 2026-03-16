@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from app.models import User, Exam, Question, Record
-from app.schemas import UserCreate, ExamCreate, QuestionCreate, ExamSubmit
+from app.models import User, Exam, Question, Record, SharedOptionGroup
+from app.schemas import UserCreate, ExamCreate, QuestionCreate, ExamSubmit, SharedOptionGroupCreate
 from app.auth import get_password_hash, verify_password
 from typing import List, Optional
 from datetime import datetime
@@ -143,6 +143,51 @@ def delete_question(db: Session, question_id: int) -> bool:
     if not db_question:
         return False
     db.delete(db_question)
+    db.commit()
+    return True
+
+
+# Shared Option Group CRUD
+def create_shared_option_group(db: Session, exam_id: int, group: SharedOptionGroupCreate) -> SharedOptionGroup:
+    db_group = SharedOptionGroup(
+        exam_id=exam_id,
+        name=group.name,
+        options=[opt.model_dump() for opt in group.options]
+    )
+    db.add(db_group)
+    db.commit()
+    db.refresh(db_group)
+    return db_group
+
+
+def get_shared_option_groups(db: Session, exam_id: int) -> List[SharedOptionGroup]:
+    return db.query(SharedOptionGroup).filter(SharedOptionGroup.exam_id == exam_id).all()
+
+
+def get_shared_option_group(db: Session, group_id: int) -> Optional[SharedOptionGroup]:
+    return db.query(SharedOptionGroup).filter(SharedOptionGroup.id == group_id).first()
+
+
+def update_shared_option_group(db: Session, group_id: int, group_update: dict) -> Optional[SharedOptionGroup]:
+    db_group = db.query(SharedOptionGroup).filter(SharedOptionGroup.id == group_id).first()
+    if not db_group:
+        return None
+    for key, value in group_update.items():
+        if value is not None and hasattr(db_group, key):
+            if key == 'options' and value is not None:
+                db_group.options = value
+            else:
+                setattr(db_group, key, value)
+    db.commit()
+    db.refresh(db_group)
+    return db_group
+
+
+def delete_shared_option_group(db: Session, group_id: int) -> bool:
+    db_group = db.query(SharedOptionGroup).filter(SharedOptionGroup.id == group_id).first()
+    if not db_group:
+        return False
+    db.delete(db_group)
     db.commit()
     return True
 

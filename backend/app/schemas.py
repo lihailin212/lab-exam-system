@@ -87,6 +87,7 @@ class QuestionCreate(BaseModel):
     answer: str
     explanation: Optional[str] = None
     score: int = 10
+    shared_option_group_id: Optional[int] = None
 
 
 class QuestionUpdate(BaseModel):
@@ -107,6 +108,28 @@ class QuestionResponse(BaseModel):
     answer: str
     explanation: Optional[str]
     score: int
+    shared_option_group_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+# Shared Option Group schemas
+class SharedOptionGroupCreate(BaseModel):
+    name: str
+    options: List[OptionSchema]
+
+
+class SharedOptionGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    options: Optional[List[OptionSchema]] = None
+
+
+class SharedOptionGroupResponse(BaseModel):
+    id: int
+    exam_id: int
+    name: str
+    options: List[dict]
 
     class Config:
         from_attributes = True

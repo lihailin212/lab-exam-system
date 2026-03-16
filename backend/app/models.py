@@ -33,6 +33,7 @@ class Exam(Base):
 
     questions = relationship("Question", back_populates="exam", cascade="all, delete-orphan")
     records = relationship("Record", back_populates="exam", cascade="all, delete-orphan")
+    shared_option_groups = relationship("SharedOptionGroup", back_populates="exam", cascade="all, delete-orphan")
 
 
 class Question(Base):
@@ -40,15 +41,30 @@ class Question(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
-    question_type = Column(String(20), default="single")  # single, multiple, judgment
+    question_type = Column(String(20), default="single")  # single, multiple, judgment, shared_option
     content = Column(Text, nullable=False)  # rich text with images
     options = Column(JSON, nullable=True)  # [{"id": "A", "content": "..."}]
     answer = Column(String(500), nullable=False)  # single: "A", multiple: "A,B", judgment: "true"
     explanation = Column(Text, nullable=True)
     score = Column(Integer, default=10)
+    shared_option_group_id = Column(Integer, ForeignKey("shared_option_groups.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     exam = relationship("Exam", back_populates="questions")
+    shared_option_group = relationship("SharedOptionGroup", back_populates="questions")
+
+
+class SharedOptionGroup(Base):
+    __tablename__ = "shared_option_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(200), nullable=False)  # 选项组名称
+    options = Column(JSON, nullable=False)  # [{"id": "A", "content": "..."}]
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    exam = relationship("Exam", back_populates="shared_option_groups")
+    questions = relationship("Question", back_populates="shared_option_group")
 
 
 class Record(Base):

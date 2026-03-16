@@ -8,10 +8,11 @@ import uuid
 import shutil
 from datetime import datetime
 from app.database import get_db
-from app.schemas import QuestionCreate, QuestionUpdate, QuestionResponse
+from app.schemas import QuestionCreate, QuestionUpdate, QuestionResponse, SharedOptionGroupCreate, SharedOptionGroupUpdate, SharedOptionGroupResponse
 from app.crud import create_question, get_questions, get_question, update_question, delete_question
+from app.crud import create_shared_option_group, get_shared_option_groups, get_shared_option_group, update_shared_option_group, delete_shared_option_group
 from app.auth import get_current_user, get_current_admin
-from app.models import User, Exam, Question
+from app.models import User, Exam, Question, SharedOptionGroup
 from app.utils.importer import import_questions
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
@@ -68,6 +69,7 @@ def create_new_question(
     answer: str = Form(""),
     explanation: Optional[str] = Form(None),
     score: int = Form(10),
+    shared_option_group_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
@@ -75,22 +77,35 @@ def create_new_question(
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="考核不存在")
-    
+
     # Parse options JSON
     try:
         options_list = json.loads(options)
     except:
         options_list = []
-    
+
+    # Parse shared_option_group_id
+    shared_group_id = None
+    if shared_option_group_id:
+        try:
+            shared_group_id = int(shared_option_group_id)
+            # Verify the group exists and belongs to this exam
+            group = get_shared_option_group(db, shared_group_id)
+            if not group or group.exam_id != exam_id:
+                raise HTTPException(status_code=400, detail="无效的共用选项组")
+        except ValueError:
+            shared_group_id = None
+
     question = create_question(db, exam_id, QuestionCreate(
         question_type=question_type,
         content=content,
         options=options_list,
         answer=answer,
         explanation=explanation,
-        score=score
+        score=score,
+        shared_option_group_id=shared_group_id
     ))
-    
+
     return question
 
 
@@ -101,6 +116,15 @@ def list_exam_questions(
     current_user: User = Depends(get_current_user)
 ):
     questions = get_questions(db, exam_id)
+
+    # For shared_option questions, include the shared options in the response
+    for q in questions:
+        if q.question_type == 'shared_option' and q.shared_option_group_id:
+            group = get_shared_option_group(db, q.shared_option_group_id)
+            if group:
+                # Add shared options to the question's options field for frontend use
+                q.options = group.options
+
     return questions
 
 
@@ -125,6 +149,7 @@ def update_existing_question(
     answer: Optional[str] = Form(None),
     explanation: Optional[str] = Form(None),
     score: Optional[int] = Form(None),
+    shared_option_group_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
@@ -144,7 +169,13 @@ def update_existing_question(
         update_data["explanation"] = explanation
     if score is not None:
         update_data["score"] = score
-    
+    if shared_option_group_id is not None:
+        try:
+            shared_group_id = int(shared_option_group_id) if shared_option_group_id else None
+            update_data["shared_option_group_id"] = shared_group_id
+        except ValueError:
+            pass
+
     updated_question = update_question(db, question_id, update_data)
     if not updated_question:
         raise HTTPException(status_code=404, detail="题目不存在")
@@ -182,16 +213,105 @@ async def upload_image(
     # Create upload directory if not exists
     upload_dir = os.path.join(os.path.dirname(__file__), "..", "static", "images")
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     # Generate unique filename
     file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(upload_dir, unique_filename)
-    
+
     # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
+
     # Return URL path
     image_url = f"/static/images/{unique_filename}"
     return {"url": image_url, "filename": unique_filename}
+
+
+# Shared Option Group APIs
+@router.post("/shared-option-groups/exam/{exam_id}", response_model=SharedOptionGroupResponse)
+def create_shared_option_group_api(
+    exam_id: int,
+    group: SharedOptionGroupCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Create a shared option group for an exam"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="考核不存在")
+
+    db_group = create_shared_option_group(db, exam_id, group)
+    return db_group
+
+
+@router.get("/shared-option-groups/exam/{exam_id}", response_model=List[SharedOptionGroupResponse])
+def list_shared_option_groups_api(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """List all shared option groups for an exam"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="考核不存在")
+
+    groups = get_shared_option_groups(db, exam_id)
+    return groups
+
+
+@router.get("/shared-option-groups/{group_id}", response_model=SharedOptionGroupResponse)
+def get_shared_option_group_api(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Get a shared option group by ID"""
+    group = get_shared_option_group(db, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="选项组不存在")
+    return group
+
+
+@router.put("/shared-option-groups/{group_id}", response_model=SharedOptionGroupResponse)
+def update_shared_option_group_api(
+    group_id: int,
+    group_update: SharedOptionGroupUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Update a shared option group"""
+    update_data = {}
+    if group_update.name is not None:
+        update_data["name"] = group_update.name
+    if group_update.options is not None:
+        update_data["options"] = [opt.model_dump() for opt in group_update.options]
+
+    db_group = update_shared_option_group(db, group_id, update_data)
+    if not db_group:
+        raise HTTPException(status_code=404, detail="选项组不存在")
+    return db_group
+
+
+@router.delete("/shared-option-groups/{group_id}")
+def delete_shared_option_group_api(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Delete a shared option group"""
+    # Check if any questions are using this group
+    questions_using_group = db.query(Question).filter(
+        Question.shared_option_group_id == group_id
+    ).count()
+
+    if questions_using_group > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"该选项组正被 {questions_using_group} 道题目使用，无法删除"
+        )
+
+    success = delete_shared_option_group(db, group_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="选项组不存在")
+    return {"message": "删除成功"}

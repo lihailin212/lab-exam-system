@@ -36,9 +36,9 @@
           <div class="options">
             <template v-if="questions[currentIndex].question_type === 'single'">
               <el-radio-group v-model="answers[questions[currentIndex].id]">
-                <el-radio 
-                  v-for="opt in questions[currentIndex].options" 
-                  :key="opt.id" 
+                <el-radio
+                  v-for="opt in questions[currentIndex].options"
+                  :key="opt.id"
                   :label="opt.id"
                   class="option-item"
                 >
@@ -47,12 +47,12 @@
                 </el-radio>
               </el-radio-group>
             </template>
-            
+
             <template v-else-if="questions[currentIndex].question_type === 'multiple'">
               <el-checkbox-group v-model="multipleAnswers[questions[currentIndex].id]">
-                <el-checkbox 
-                  v-for="opt in questions[currentIndex].options" 
-                  :key="opt.id" 
+                <el-checkbox
+                  v-for="opt in questions[currentIndex].options"
+                  :key="opt.id"
                   :label="opt.id"
                   class="option-item"
                 >
@@ -62,12 +62,31 @@
               </el-checkbox-group>
               <p class="multi-tip">（多选题，可选择多个答案）</p>
             </template>
-            
+
             <template v-else-if="questions[currentIndex].question_type === 'judgment'">
               <el-radio-group v-model="answers[questions[currentIndex].id]">
                 <el-radio label="true" class="option-item">正确</el-radio>
                 <el-radio label="false" class="option-item">错误</el-radio>
               </el-radio-group>
+            </template>
+
+            <template v-else-if="questions[currentIndex].question_type === 'shared_option'">
+              <div class="shared-option-container">
+                <el-select
+                  v-model="answers[questions[currentIndex].id]"
+                  placeholder="请选择答案"
+                  size="large"
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="opt in questions[currentIndex].options"
+                    :key="opt.id"
+                    :label="`${opt.id}. ${opt.content}`"
+                    :value="opt.id"
+                  />
+                </el-select>
+                <p class="option-tip">（请从下拉框中选择正确答案）</p>
+              </div>
             </template>
           </div>
         </el-card>
@@ -177,7 +196,7 @@ const formatDuration = (seconds) => {
 }
 
 const getQuestionTypeText = (type) => {
-  const texts = { single: '单选题', multiple: '多选题', judgment: '判断题' }
+  const texts = { single: '单选题', multiple: '多选题', judgment: '判断题', shared_option: '共用选项题' }
   return texts[type] || type
 }
 
@@ -337,6 +356,16 @@ const submitExam = async () => {
 }
 
 .multi-tip {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.shared-option-container {
+  margin-top: 20px;
+}
+
+.option-tip {
   color: #909399;
   font-size: 12px;
   margin-top: 10px;
