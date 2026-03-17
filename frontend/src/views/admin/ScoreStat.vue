@@ -74,7 +74,12 @@
         
         <el-card style="margin-top: 20px">
           <template #header>
-            <span>成绩明细</span>
+            <div class="card-header">
+              <span>成绩明细</span>
+              <el-button type="primary" @click="exportScores" :disabled="!records.length">
+                导出成绩
+              </el-button>
+            </div>
           </template>
           
           <el-table :data="records" v-loading="loading">
@@ -233,6 +238,59 @@ const updateChart = () => {
 const formatTime = (time) => {
   if (!time) return '-'
   return new Date(time).toLocaleString('zh-CN')
+}
+
+const exportScores = () => {
+  if (!records.value.length || !selectedExamStats.value) {
+    ElMessage.warning('暂无数据可导出')
+    return
+  }
+
+  // Create CSV content
+  const exam = exams.value.find(e => e.id === selectedExam.value)
+  const csvRows = []
+
+  // Add header with exam info
+  csvRows.push(`考核名称：${exam ? exam.title : '未知'}`)
+  csvRows.push(`统计日期：${new Date().toLocaleString('zh-CN')}`)
+  csvRows.push('')
+
+  // Add statistics summary
+  csvRows.push('统计摘要')
+  csvRows.push(`参加人数：${selectedExamStats.value.total_participants}`)
+  csvRows.push(`平均分：${selectedExamStats.value.avg_score}%`)
+  csvRows.push(`及格率：${selectedExamStats.value.pass_rate}%`)
+  csvRows.push(`最高分：${selectedExamStats.value.max_score}%`)
+  csvRows.push(`最低分：${selectedExamStats.value.min_score}%`)
+  csvRows.push('')
+
+  // Add table header
+  csvRows.push('工号,姓名,得分/总分,得分率,是否及格,提交时间')
+
+  // Add data rows
+  records.value.forEach(record => {
+    const row = [
+      record.username,
+      record.user_name,
+      `${record.score}/${record.total_score}`,
+      `${record.percentage}%`,
+      record.is_passed ? '及格' : '不及格',
+      formatTime(record.submitted_at)
+    ]
+    csvRows.push(row.join(','))
+  })
+
+  // Create CSV file
+  const csvContent = '\uFEFF' + csvRows.join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+
+  const fileName = `${exam ? exam.title : '成绩'}_${new Date().getTime()}.csv`
+  link.href = URL.createObjectURL(blob)
+  link.download = fileName
+  link.click()
+
+  ElMessage.success('导出成功')
 }
 
 const handleLogout = () => {

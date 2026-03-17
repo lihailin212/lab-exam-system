@@ -49,6 +49,14 @@
             <el-table-column prop="duration" label="时长(分钟)" width="100" />
             <el-table-column prop="pass_score" label="及格分数" width="100" />
             <el-table-column prop="question_count" label="题目数" width="80" />
+            <el-table-column label="抽取数量" width="100">
+              <template #default="{ row }">
+                <span v-if="row.total_questions">
+                  {{ row.total_questions }}
+                </span>
+                <el-tag v-else size="small">全部</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="getStatusType(row.status)">
@@ -116,6 +124,12 @@
         <el-form-item label="及格分数" prop="pass_score">
           <el-input-number v-model="form.pass_score" :min="0" :max="100" />
           <span style="margin-left: 10px">%</span>
+        </el-form-item>
+        <el-form-item label="随机抽取题数">
+          <el-input-number v-model="form.total_questions" :min="0" :max="100" :placeholder="0" />
+          <span style="margin-left: 10px; color: #909399">
+            0或留空=全部题目，>0=随机抽取
+          </span>
         </el-form-item>
       </el-form>
       
@@ -200,7 +214,8 @@ const showAddDialog = () => {
     start_time: '',
     end_time: '',
     duration: 60,
-    pass_score: 60
+    pass_score: 60,
+    total_questions: null  // null or 0 means all questions
   })
   dialogVisible.value = true
 }
@@ -214,7 +229,8 @@ const showEditDialog = (exam) => {
     start_time: new Date(exam.start_time),
     end_time: new Date(exam.end_time),
     duration: exam.duration,
-    pass_score: exam.pass_score
+    pass_score: exam.pass_score,
+    total_questions: exam.total_questions || null
   })
   dialogVisible.value = true
 }

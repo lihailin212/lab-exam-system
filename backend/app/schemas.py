@@ -46,6 +46,7 @@ class ExamCreate(BaseModel):
     end_time: datetime
     duration: int = 60
     pass_score: int = 60
+    total_questions: Optional[int] = None  # 随机抽取题目数量
 
 
 class ExamUpdate(BaseModel):
@@ -56,6 +57,7 @@ class ExamUpdate(BaseModel):
     duration: Optional[int] = None
     pass_score: Optional[int] = None
     status: Optional[str] = None
+    total_questions: Optional[int] = None
 
 
 class ExamResponse(BaseModel):
@@ -66,6 +68,7 @@ class ExamResponse(BaseModel):
     end_time: datetime
     duration: int
     pass_score: int
+    total_questions: Optional[int]  # 随机抽取题目数量，None表示使用全部题目
     status: str
     created_at: datetime
     question_count: Optional[int] = 0

@@ -167,14 +167,24 @@ const fetchExam = async () => {
       examsAPI.start(examId),
       examsAPI.getQuestions(examId)
     ])
-    
+
     examInfo.value = examRes
-    questions.value = questionsRes
-    
+    const allQuestions = questionsRes
+
+    // 如果设置了随机抽取题目数量，随机选择题目
+    if (examRes.total_questions && examRes.total_questions < allQuestions.length) {
+      // 随机打乱题目数组
+      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5)
+      // 选择指定数量的题目
+      questions.value = shuffled.slice(0, examRes.total_questions)
+    } else {
+      questions.value = allQuestions
+    }
+
     // Calculate time left
     const startResult = await examsAPI.start(examId)
     timeLeft.value = startResult.duration * 60
-    
+
     // Start timer
     timer = setInterval(() => {
       timeLeft.value--

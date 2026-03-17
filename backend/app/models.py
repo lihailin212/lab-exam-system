@@ -29,6 +29,7 @@ class Exam(Base):
     duration = Column(Integer, default=60)  # minutes
     pass_score = Column(Integer, default=60)  # pass score percentage
     status = Column(String(20), default="draft")  # draft, published, closed
+    total_questions = Column(Integer, nullable=True)  # 随机抽取题目数量，None表示使用全部题目
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     questions = relationship("Question", back_populates="exam", cascade="all, delete-orphan")

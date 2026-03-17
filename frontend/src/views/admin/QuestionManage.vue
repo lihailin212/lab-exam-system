@@ -33,7 +33,7 @@
           <div>
             <el-button type="primary" @click="showAddDialog">添加题目</el-button>
             <el-button type="warning" @click="showSharedOptionDialog">管理共用选项</el-button>
-            <el-button type="success" @click="showImportDialog">批量导入</el-button>
+            <el-button type="success" @click="openImportDialog">批量导入</el-button>
             <el-button @click="$router.push('/admin/exams')">返回</el-button>
           </div>
         </div>
@@ -548,6 +548,12 @@ shared_option,示例共用选项题,,A,这是共用选项题的题干，选项�
   link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + templateContent)
   link.download = '导入模板.csv'
   link.click()
+}
+
+const openImportDialog = () => {
+  showImportDialog.value = true
+  selectedFile.value = null
+  importResult.value = null
 }
 
 const closeImportDialog = () => {
