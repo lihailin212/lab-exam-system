@@ -41,14 +41,35 @@ app.include_router(records.router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Create default admin user on startup"""
-    from app.database import SessionLocal
+    """Create default admin user on startup and run migrations"""
+    from app.database import SessionLocal, engine
+    import sqlite3
+
+    # Run database migrations
+    try:
+        conn = sqlite3.connect(str(engine.url).replace('sqlite:///', ''))
+        cursor = conn.cursor()
+
+        # Check if exams table exists and add total_questions column if needed
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exams'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(exams)")
+            columns = [col[1] for col in cursor.fetchall()]
+
+            if 'total_questions' not in columns:
+                cursor.execute("ALTER TABLE exams ADD COLUMN total_questions INTEGER")
+                conn.commit()
+                print("Migration: Added total_questions column to exams table")
+
+        conn.close()
+    except Exception as e:
+        print(f"Migration warning: {e}")
+
+    # Create default admin user
     db = SessionLocal()
     try:
-        # Check if admin exists
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
-            # Create default admin
             create_user(db, UserCreate(
                 username="admin",
                 password="admin123",

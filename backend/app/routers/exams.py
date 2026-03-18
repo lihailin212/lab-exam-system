@@ -32,6 +32,7 @@ def list_exams(
             "end_time": exam.end_time,
             "duration": exam.duration,
             "pass_score": exam.pass_score,
+            "total_questions": exam.total_questions,
             "status": exam.status,
             "created_at": exam.created_at,
             "question_count": len(exam.questions) if exam.questions else 0
@@ -60,6 +61,7 @@ def list_active_exams(
             "end_time": exam.end_time,
             "duration": exam.duration,
             "pass_score": exam.pass_score,
+            "total_questions": exam.total_questions,
             "status": exam.status,
             "created_at": exam.created_at,
             "question_count": len(exam.questions) if exam.questions else 0
@@ -77,7 +79,7 @@ def get_exam_detail(
     exam = get_exam(db, exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="考核不存在")
-    
+
     return {
         "id": exam.id,
         "title": exam.title,
@@ -86,6 +88,7 @@ def get_exam_detail(
         "end_time": exam.end_time,
         "duration": exam.duration,
         "pass_score": exam.pass_score,
+        "total_questions": exam.total_questions,
         "status": exam.status,
         "created_at": exam.created_at,
         "question_count": len(exam.questions) if exam.questions else 0
@@ -107,6 +110,7 @@ def create_new_exam(
         "end_time": db_exam.end_time,
         "duration": db_exam.duration,
         "pass_score": db_exam.pass_score,
+        "total_questions": db_exam.total_questions,
         "status": db_exam.status,
         "created_at": db_exam.created_at,
         "question_count": 0
@@ -132,6 +136,7 @@ def update_existing_exam(
         "end_time": updated_exam.end_time,
         "duration": updated_exam.duration,
         "pass_score": updated_exam.pass_score,
+        "total_questions": updated_exam.total_questions,
         "status": updated_exam.status,
         "created_at": updated_exam.created_at,
         "question_count": len(updated_exam.questions) if updated_exam.questions else 0
