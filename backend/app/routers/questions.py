@@ -194,16 +194,6 @@ def delete_existing_question(
     return {"message": "删除成功"}
 
 
-@router.post("/import/exam/{exam_id}")
-def import_questions(
-    exam_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """Import questions from uploaded file (Excel or Word)"""
-    return {"message": "批量导入功能待实现，请手动添加题目"}
-
-
 @router.post("/upload-image")
 async def upload_image(
     file: UploadFile = File(...),

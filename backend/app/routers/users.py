@@ -100,9 +100,26 @@ async def import_users(
     try:
         file_content = await file.read()
 
-        # Parse Excel file
-        wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
-        ws = wb.active
+        # Validate file type
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="文件名不能为空")
+
+        file_ext = file.filename.lower().split('.')[-1]
+        if file_ext not in ['xlsx', 'xls']:
+            raise HTTPException(status_code=400, detail=f"不支持的文件格式: {file_ext}. 请使用 .xlsx 或 .xls 文件")
+
+        if len(file_content) == 0:
+            raise HTTPException(status_code=400, detail="文件内容为空，请检查文件是否正确")
+
+        # Parse Excel file with better error handling
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
+            ws = wb.active
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Excel文件解析失败: {str(e)}。请确保文件是有效的Excel格式且未损坏。"
+            )
 
         # Read header
         header_row = True
@@ -184,8 +201,10 @@ async def import_users(
             "errors": errors[:10]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail=f"导入失败: {str(e)}"
+            status_code=500,
+            detail=f"导入过程发生错误: {str(e)}"
         )
