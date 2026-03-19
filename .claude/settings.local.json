@@ -9,7 +9,9 @@
       "Bash(git commit:*)",
       "Bash(ping -n 2 github.com)",
       "Bash(python -m backend.app.main)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)"
     ]
   }
 }

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import io
 import openpyxl
+import xlrd
 from app.database import get_db
 from app.schemas import UserCreate, UserUpdate, UserInfo
 from app.crud import get_users, create_user, get_user_by_username, update_user, delete_user
@@ -113,8 +114,20 @@ async def import_users(
 
         # Parse Excel file with better error handling
         try:
-            wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
-            ws = wb.active
+            if file_ext == 'xlsx':
+                # Parse .xlsx file with openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
+                ws = wb.active
+                rows = ws.iter_rows(values_only=True)
+            else:
+                # Parse .xls file with xlrd
+                wb = xlrd.open_workbook(file_contents=file_content)
+                ws = wb.sheet_by_index(0)
+                # Convert xlrd rows to iterator
+                def xls_row_iterator():
+                    for row_idx in range(ws.nrows):
+                        yield ws.row_values(row_idx)
+                rows = xls_row_iterator()
         except Exception as e:
             raise HTTPException(
                 status_code=400,
@@ -127,7 +140,7 @@ async def import_users(
         skipped_count = 0
         errors = []
 
-        for row_num, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        for row_num, row in enumerate(rows, start=1):
             if header_row:
                 header_row = False
                 continue
