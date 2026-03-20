@@ -34,6 +34,7 @@
             <el-button type="primary" @click="showAddDialog">添加题目</el-button>
             <el-button type="warning" @click="showSharedOptionDialog">管理共用选项</el-button>
             <el-button type="success" @click="openImportDialog">批量导入</el-button>
+            <el-button type="info" @click="handleExport">批量导出</el-button>
             <el-button @click="$router.push('/admin/exams')">返回</el-button>
           </div>
         </div>
@@ -554,6 +555,68 @@ const openImportDialog = () => {
   showImportDialog.value = true
   selectedFile.value = null
   importResult.value = null
+}
+
+const handleExport = () => {
+  if (questions.value.length === 0) {
+    ElMessage.warning('当前没有题目可导出')
+    return
+  }
+
+  // Build CSV content
+  const headers = ['题型', '题干', '选项', '答案', '解析', '分值']
+  const rows = questions.value.map(q => {
+    const typeMap = {
+      'single': '单选题',
+      'multiple': '多选题',
+      'judgment': '判断题',
+      'shared_option': '共用选项题'
+    }
+    const type = typeMap[q.question_type] || q.question_type
+
+    // Format options
+    let options = ''
+    if (q.options && q.options.length > 0) {
+      options = q.options.map(opt => `${opt.id}:${opt.content}`).join('|')
+    }
+
+    // Format answer
+    let answer = q.answer
+    if (q.question_type === 'judgment') {
+      answer = q.answer === 'true' ? '正确' : '错误'
+    }
+
+    return [
+      type,
+      q.content || '',
+      options,
+      answer || '',
+      q.explanation || '',
+      q.score || 10
+    ]
+  })
+
+  // Convert to CSV
+  const csvContent = '\uFEFF' + [headers, ...rows].map(row =>
+    row.map(cell => {
+      // Escape cells containing commas, quotes, or newlines
+      const cellStr = String(cell).replace(/"/g, '""')
+      if (cellStr.includes(',') || cellStr.includes('\n') || cellStr.includes('"')) {
+        return `"${cellStr}"`
+      }
+      return cellStr
+    }).join(',')
+  ).join('\n')
+
+  // Download file
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${examInfo.value?.title || '考核'}_题目导出_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+
+  ElMessage.success(`成功导出 ${questions.value.length} 道题目`)
 }
 
 const closeImportDialog = () => {
