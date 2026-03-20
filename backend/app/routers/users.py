@@ -148,7 +148,17 @@ async def import_users(
             if not row or not any(row):
                 continue
 
-            row_data = [str(cell) if cell is not None else "" for cell in row]
+            # Convert cell to string, handling numeric values properly
+            def cell_to_str(cell):
+                if cell is None:
+                    return ""
+                # If it's a float but represents an integer (e.g., 12345.0), convert to int first
+                if isinstance(cell, float):
+                    if cell == int(cell):
+                        return str(int(cell))
+                return str(cell)
+
+            row_data = [cell_to_str(cell) for cell in row]
 
             # Parse user data
             # Expected format: 工号,姓名,密码,角色,状态
