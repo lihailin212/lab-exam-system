@@ -13,6 +13,11 @@ const routes = [
     component: () => import('../views/ScanConfirm.vue')
   },
   {
+    path: '/scan-exam',
+    name: 'ScanExam',
+    component: () => import('../views/ScanExam.vue')
+  },
+  {
     path: '/',
     name: 'ExamList',
     component: () => import('../views/ExamList.vue'),

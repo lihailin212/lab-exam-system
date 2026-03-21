@@ -74,21 +74,22 @@
                 {{ formatTime(row.end_time) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="280">
+            <el-table-column label="操作" width="350">
               <template #default="{ row }">
                 <el-button size="small" type="primary" @click="manageQuestions(row)">题目</el-button>
+                <el-button size="small" type="success" @click="generateQRCode(row)">二维码</el-button>
                 <el-button size="small" @click="showEditDialog(row)">编辑</el-button>
-                <el-button 
-                  size="small" 
-                  type="success" 
+                <el-button
+                  size="small"
+                  type="success"
                   v-if="row.status === 'draft'"
                   @click="handlePublish(row)"
                 >
                   发布
                 </el-button>
-                <el-button 
-                  size="small" 
-                  type="warning" 
+                <el-button
+                  size="small"
+                  type="warning"
                   v-if="row.status === 'published'"
                   @click="handleClose(row)"
                 >
@@ -138,6 +139,31 @@
         <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- QR Code Dialog -->
+    <el-dialog v-model="qrCodeDialogVisible" title="考试二维码" width="450px">
+      <div v-if="qrCodeData.qr_image" class="qrcode-content">
+        <div class="qrcode-header">
+          <h4>{{ qrCodeData.exam_title }}</h4>
+          <p class="time-info">
+            考试时间: {{ formatTime(qrCodeData.start_time) }} ~ {{ formatTime(qrCodeData.end_time) }}
+          </p>
+        </div>
+        <img :src="qrCodeData.qr_image" alt="考试二维码" class="qrcode-image" />
+        <div class="qrcode-tips">
+          <p>考生扫描此二维码即可进入考试</p>
+          <p class="highlight">二维码有效期: 考试开始至考试结束</p>
+        </div>
+        <div class="qrcode-actions">
+          <el-button type="primary" @click="downloadQRCode">下载二维码</el-button>
+          <el-button @click="qrCodeDialogVisible = false">关闭</el-button>
+        </div>
+      </div>
+      <div v-else class="qrcode-loading">
+        <el-icon class="is-loading"><loading /></el-icon>
+        <p>正在生成二维码...</p>
+      </div>
+    </el-dialog>
   </el-container>
 </template>
 
@@ -145,6 +171,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { examsAPI } from '@/api'
 
@@ -159,6 +186,15 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
+const qrCodeDialogVisible = ref(false)
+const qrCodeData = ref({
+  qr_token: '',
+  qr_image: '',
+  exam_title: '',
+  start_time: '',
+  end_time: '',
+  exam_id: 0
+})
 
 const form = reactive({
   title: '',
@@ -302,6 +338,56 @@ const handleLogout = () => {
   userStore.logout()
   router.push('/login')
 }
+
+const generateQRCode = async (exam) => {
+  if (exam.status !== 'published') {
+    ElMessage.warning('只能为已发布的考试生成二维码')
+    return
+  }
+
+  qrCodeDialogVisible.value = true
+  qrCodeData.value = {
+    qr_token: '',
+    qr_image: '',
+    exam_title: '',
+    start_time: '',
+    end_time: '',
+    exam_id: 0
+  }
+
+  try {
+    const response = await fetch('https://lab-exam-api.onrender.com/api/qrcode/exam/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userStore.token}`
+      },
+      body: JSON.stringify({ exam_id: exam.id })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      ElMessage.error(error.detail || '生成二维码失败')
+      return
+    }
+
+    const data = await response.json()
+    qrCodeData.value = data
+  } catch (error) {
+    ElMessage.error('生成二维码失败')
+    console.error(error)
+  }
+}
+
+const downloadQRCode = () => {
+  if (!qrCodeData.value.qr_image) return
+
+  // Create download link
+  const link = document.createElement('a')
+  link.href = qrCodeData.value.qr_image
+  link.download = `${qrCodeData.value.exam_title}_二维码.png`
+  link.click()
+}
 </script>
 
 <style scoped>
@@ -329,5 +415,57 @@ const handleLogout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.qrcode-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.qrcode-header h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.time-info {
+  color: #666;
+  font-size: 13px;
+  margin: 0 0 20px 0;
+}
+
+.qrcode-image {
+  width: 250px;
+  height: 250px;
+  border: 2px solid #e0e0e0;
+  padding: 10px;
+  background: white;
+  margin: 0 auto 20px;
+}
+
+.qrcode-tips {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.qrcode-tips p {
+  margin: 5px 0;
+}
+
+.qrcode-tips .highlight {
+  color: #409eff;
+  font-weight: bold;
+}
+
+.qrcode-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.qrcode-loading {
+  padding: 40px;
+  text-align: center;
+  color: #666;
 }
 </style>

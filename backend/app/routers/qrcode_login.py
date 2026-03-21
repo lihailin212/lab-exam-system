@@ -10,33 +10,27 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.auth import create_access_token, get_current_user
-from app.models import User
-from app.crud import get_user_by_username
+from app.auth import get_current_user
+from app.models import User, Exam
+from app.crud import get_exam_by_id
 
 router = APIRouter(prefix="/api/qrcode", tags=["qrcode"])
 
-# 存储二维码状态（生产环境应使用 Redis）
-_qr_code_store = {}
-
-QR_CODE_EXPIRE_MINUTES = 5
+# 存储考试二维码状态
+_exam_qr_store = {}
 
 
-class QRCodeStatus(BaseModel):
-    status: str  # pending, scanned, confirmed, expired
-    username: Optional[str] = None
-    token: Optional[str] = None
+class ExamQRCodeRequest(BaseModel):
+    exam_id: int
 
 
-class QRCodeScanRequest(BaseModel):
+class ExamQRCodeResponse(BaseModel):
     qr_token: str
-    username: str
-
-
-class QRCodeConfirmRequest(BaseModel):
-    qr_token: str
-    username: str
-    password: str
+    qr_image: str
+    exam_title: str
+    start_time: str
+    end_time: str
+    exam_id: int
 
 
 def generate_qr_code(data: str) -> str:
@@ -59,183 +53,221 @@ def generate_qr_code(data: str) -> str:
     return f"data:image/png;base64,{img_str}"
 
 
-@router.post("/generate")
-def generate_qr_code_login(
+@router.post("/exam/generate")
+def generate_exam_qr_code(
+    request: ExamQRCodeRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate a new QR code for login"""
+    """Generate a QR code for an exam (admin only)"""
+    # Verify user is admin
+    if current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can generate exam QR codes"
+        )
+
+    # Get exam
+    exam = get_exam_by_id(db, request.exam_id)
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Exam not found"
+        )
+
+    # Verify exam is published
+    if exam.status != 'published':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only published exams can have QR codes"
+        )
+
+    # Generate unique token for this exam
     qr_token = str(uuid.uuid4())
 
-    # Store QR code status
-    _qr_code_store[qr_token] = {
-        "status": "pending",
-        "created_at": datetime.utcnow(),
-        "username": None,
-        "token": None
+    # Store exam QR code data
+    _exam_qr_store[qr_token] = {
+        "exam_id": exam.id,
+        "exam_title": exam.title,
+        "start_time": exam.start_time,
+        "end_time": exam.end_time,
+        "created_at": datetime.utcnow()
     }
 
-    # Generate QR code data (URL for mobile to scan)
-    # The URL points to the mobile confirmation page
-    qr_data = f"https://lab-exam-system.vercel.app/scan?token={qr_token}"
+    # Generate QR code data (URL for scanning)
+    # The URL points to exam entry page
+    qr_data = f"https://lab-exam-system.vercel.app/scan-exam?token={qr_token}"
 
     # Generate QR code image
     qr_image = generate_qr_code(qr_data)
 
-    return {
-        "qr_token": qr_token,
-        "qr_image": qr_image,
-        "expire_seconds": QR_CODE_EXPIRE_MINUTES * 60
-    }
+    return ExamQRCodeResponse(
+        qr_token=qr_token,
+        qr_image=qr_image,
+        exam_title=exam.title,
+        start_time=exam.start_time.isoformat(),
+        end_time=exam.end_time.isoformat(),
+        exam_id=exam.id
+    )
 
 
-@router.get("/status/{qr_token}")
-def check_qr_code_status(
+@router.get("/exam/verify/{qr_token}")
+def verify_exam_qr_code(
     qr_token: str,
     db: Session = Depends(get_db)
 ):
-    """Check QR code status (polling by PC client)"""
-    if qr_token not in _qr_code_store:
+    """Verify QR code token and return exam info (for mobile scan)"""
+    if qr_token not in _exam_qr_store:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="QR code not found"
         )
 
-    qr_data = _qr_code_store[qr_token]
+    qr_data = _exam_qr_store[qr_token]
+    exam_id = qr_data.get("exam_id")
 
-    # Check if expired
-    created_at = qr_data.get("created_at")
-    if created_at and datetime.utcnow() - created_at > timedelta(minutes=QR_CODE_EXPIRE_MINUTES):
-        qr_data["status"] = "expired"
+    # Get exam details
+    exam = get_exam_by_id(db, exam_id)
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Exam not found"
+        )
+
+    # Check exam time validity
+    now = datetime.utcnow()
+    start_time = exam.start_time
+    end_time = exam.end_time
+
+    if now < start_time:
+        return {
+            "valid": False,
+            "reason": "考试尚未开始",
+            "exam_id": exam.id,
+            "exam_title": exam.title,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat()
+        }
+
+    if now > end_time:
+        return {
+            "valid": False,
+            "reason": "考试已结束",
+            "exam_id": exam.id,
+            "exam_title": exam.title,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat()
+        }
+
+    if exam.status != 'published':
+        return {
+            "valid": False,
+            "reason": "考试未发布",
+            "exam_id": exam.id,
+            "exam_title": exam.title
+        }
 
     return {
-        "status": qr_data["status"],
-        "username": qr_data.get("username"),
-        "token": qr_data.get("token")
+        "valid": True,
+        "exam_id": exam.id,
+        "exam_title": exam.title,
+        "exam_description": exam.description,
+        "duration": exam.duration,
+        "pass_score": exam.pass_score,
+        "question_count": exam.question_count,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "qr_token": qr_token
     }
 
 
-@router.post("/scan")
-def scan_qr_code(
-    request: QRCodeScanRequest,
-    db: Session = Depends(get_db)
-):
-    """Called when mobile app scans the QR code"""
-    if request.qr_token not in _qr_code_store:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="QR code not found or expired"
-        )
-
-    qr_data = _qr_code_store[request.qr_token]
-
-    # Check if expired
-    created_at = qr_data.get("created_at")
-    if created_at and datetime.utcnow() - created_at > timedelta(minutes=QR_CODE_EXPIRE_MINUTES):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="QR code expired"
-        )
-
-    # Check if already scanned
-    if qr_data["status"] != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="QR code already scanned"
-        )
-
-    # Verify username exists
-    user = get_user_by_username(db, request.username)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Update status to scanned
-    qr_data["status"] = "scanned"
-    qr_data["username"] = request.username
-
-    return {
-        "status": "scanned",
-        "username": request.username,
-        "name": user.name
-    }
-
-
-@router.post("/confirm")
-def confirm_qr_code_login(
-    request: QRCodeConfirmRequest,
-    db: Session = Depends(get_db)
-):
-    """Called when mobile app confirms login"""
-    from app.crud import authenticate_user
-
-    if request.qr_token not in _qr_code_store:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="QR code not found or expired"
-        )
-
-    qr_data = _qr_code_store[request.qr_token]
-
-    # Check if expired
-    created_at = qr_data.get("created_at")
-    if created_at and datetime.utcnow() - created_at > timedelta(minutes=QR_CODE_EXPIRE_MINUTES):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="QR code expired"
-        )
-
-    # Authenticate user
-    user = authenticate_user(db, request.username, request.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-
-    # Generate access token
-    access_token_expires = timedelta(minutes=30)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-
-    # Update QR code status with token
-    qr_data["status"] = "confirmed"
-    qr_data["token"] = access_token
-
-    return {
-        "status": "confirmed",
-        "username": user.username,
-        "name": user.name
-    }
-
-
-@router.post("/cancel")
-def cancel_qr_code_login(
+@router.post("/exam/validate")
+def validate_exam_qr_code(
     qr_token: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Cancel QR code login"""
-    if qr_token in _qr_code_store:
-        _qr_code_store[qr_token]["status"] = "expired"
+    """Validate QR code and allow user to start exam"""
+    if qr_token not in _exam_qr_store:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="QR code not found"
+        )
 
-    return {"status": "cancelled"}
+    qr_data = _exam_qr_store[qr_token]
+    exam_id = qr_data.get("exam_id")
+
+    # Get exam details
+    exam = get_exam_by_id(db, exam_id)
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Exam not found"
+        )
+
+    # Check exam time validity
+    now = datetime.utcnow()
+    if now < exam.start_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="考试尚未开始"
+        )
+
+    if now > exam.end_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="考试已结束"
+        )
+
+    if exam.status != 'published':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="考试未发布"
+        )
+
+    # Verify user hasn't already taken this exam
+    from app.models import ExamRecord
+    existing_record = db.query(ExamRecord).filter(
+        ExamRecord.user_id == current_user.id,
+        ExamRecord.exam_id == exam.id
+    ).first()
+
+    if existing_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="您已经参加过本次考试"
+        )
+
+    # Return exam info for starting exam
+    return {
+        "success": True,
+        "exam_id": exam.id,
+        "exam_title": exam.title,
+        "message": "验证成功，可以开始考试"
+    }
 
 
-# Cleanup expired QR codes periodically (in production, use a scheduled task)
 @router.post("/cleanup")
 def cleanup_expired_qr_codes(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Clean up expired QR codes"""
+    """Clean up expired QR codes (admin only)"""
+    if current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can cleanup QR codes"
+        )
+
     now = datetime.utcnow()
-    expired_tokens = [
-        token for token, data in _qr_code_store.items()
-        if now - data.get("created_at", now) > timedelta(minutes=QR_CODE_EXPIRE_MINUTES)
-    ]
+    expired_tokens = []
+
+    for token, data in _exam_qr_store.items():
+        exam = get_exam_by_id(db, data.get("exam_id"))
+        if exam and now > exam.end_time:
+            expired_tokens.append(token)
 
     for token in expired_tokens:
-        del _qr_code_store[token]
+        del _exam_qr_store[token]
 
     return {"cleaned": len(expired_tokens)}
