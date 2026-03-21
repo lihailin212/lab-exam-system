@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.auth import get_current_user
 from app.models import User, Exam
-from app.crud import get_exam_by_id
+from app.crud import get_exam
 
 router = APIRouter(prefix="/api/qrcode", tags=["qrcode"])
 
@@ -68,7 +68,7 @@ def generate_exam_qr_code(
         )
 
     # Get exam
-    exam = get_exam_by_id(db, request.exam_id)
+    exam = get_exam(db, request.exam_id)
     if not exam:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -11,7 +11,9 @@
       "Bash(do echo:*)",
       "Bash(break)",
       "Bash(done)",
-      "Bash(python -c \"import pandas; print\\(''pandas ok''\\)\")"
+      "Bash(python -c \"import pandas; print\\(''pandas ok''\\)\")",
+      "Bash(python -m py_compile app/routers/qrcode_login.py)",
+      "Bash(python -c \"from app.routers import qrcode_login\")"
     ]
   }
 }
