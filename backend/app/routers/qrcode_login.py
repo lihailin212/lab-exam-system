@@ -9,15 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.auth import get_current_user
-from app.models import User, Exam
+from app.models import User, Exam, ExamQRCode
 from app.crud import get_exam
+import sqlite3
 
 router = APIRouter(prefix="/api/qrcode", tags=["qrcode"])
 
-# 存储考试二维码状态
-_exam_qr_store = {}
+QR_CODE_EXPIRE_MINUTES = 5
 
 
 class ExamQRCodeRequest(BaseModel):
@@ -53,6 +53,27 @@ def generate_qr_code(data: str) -> str:
     return f"data:image/png;base64,{img_str}"
 
 
+def get_exam_qr_code(db: Session, qr_token: str) -> Optional[ExamQRCode]:
+    """Get exam QR code from database"""
+    return db.query(ExamQRCode).filter(ExamQRCode.qr_token == qr_token).first()
+
+
+def cleanup_expired_qr_codes(db: Session) -> int:
+    """Clean up expired QR codes"""
+    # Delete QR codes where exam has ended
+    now = datetime.utcnow()
+    expired_qr_codes = db.query(ExamQRCode).join(Exam).filter(
+        Exam.end_time < now
+    ).all()
+
+    count = len(expired_qr_codes)
+    for qr_code in expired_qr_codes:
+        db.delete(qr_code)
+
+    db.commit()
+    return count
+
+
 @router.post("/exam/generate")
 def generate_exam_qr_code(
     request: ExamQRCodeRequest,
@@ -85,17 +106,16 @@ def generate_exam_qr_code(
     # Generate unique token for this exam
     qr_token = str(uuid.uuid4())
 
-    # Store exam QR code data
-    _exam_qr_store[qr_token] = {
-        "exam_id": exam.id,
-        "exam_title": exam.title,
-        "start_time": exam.start_time,
-        "end_time": exam.end_time,
-        "created_at": datetime.utcnow()
-    }
+    # Store exam QR code data in database
+    qr_code = ExamQRCode(
+        qr_token=qr_token,
+        exam_id=exam.id
+    )
+    db.add(qr_code)
+    db.commit()
+    db.refresh(qr_code)
 
     # Generate QR code data (URL for scanning)
-    # The URL points to exam entry page
     qr_data = f"https://lab-exam-system.vercel.app/scan-exam?token={qr_token}"
 
     # Generate QR code image
@@ -117,17 +137,17 @@ def verify_exam_qr_code(
     db: Session = Depends(get_db)
 ):
     """Verify QR code token and return exam info (for mobile scan)"""
-    if qr_token not in _exam_qr_store:
+    qr_code = get_exam_qr_code(db, qr_token)
+    if not qr_code:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="QR code not found"
         )
 
-    qr_data = _exam_qr_store[qr_token]
-    exam_id = qr_data.get("exam_id")
+    exam_id = qr_code.exam_id
 
     # Get exam details
-    exam = get_exam_by_id(db, exam_id)
+    exam = get_exam(db, exam_id)
     if not exam:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -188,17 +208,17 @@ def validate_exam_qr_code(
     db: Session = Depends(get_db)
 ):
     """Validate QR code and allow user to start exam"""
-    if qr_token not in _exam_qr_store:
+    qr_code = get_exam_qr_code(db, qr_token)
+    if not qr_code:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="QR code not found"
         )
 
-    qr_data = _exam_qr_store[qr_token]
-    exam_id = qr_data.get("exam_id")
+    exam_id = qr_code.exam_id
 
     # Get exam details
-    exam = get_exam_by_id(db, exam_id)
+    exam = get_exam(db, exam_id)
     if not exam:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -226,10 +246,10 @@ def validate_exam_qr_code(
         )
 
     # Verify user hasn't already taken this exam
-    from app.models import ExamRecord
-    existing_record = db.query(ExamRecord).filter(
-        ExamRecord.user_id == current_user.id,
-        ExamRecord.exam_id == exam.id
+    from app.models import Record
+    existing_record = db.query(Record).filter(
+        Record.user_id == current_user.id,
+        Record.exam_id == exam.id
     ).first()
 
     if existing_record:
@@ -248,7 +268,7 @@ def validate_exam_qr_code(
 
 
 @router.post("/cleanup")
-def cleanup_expired_qr_codes(
+def cleanup_expired_qr_codes_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -259,15 +279,5 @@ def cleanup_expired_qr_codes(
             detail="Only administrators can cleanup QR codes"
         )
 
-    now = datetime.utcnow()
-    expired_tokens = []
-
-    for token, data in _exam_qr_store.items():
-        exam = get_exam_by_id(db, data.get("exam_id"))
-        if exam and now > exam.end_time:
-            expired_tokens.append(token)
-
-    for token in expired_tokens:
-        del _exam_qr_store[token]
-
-    return {"cleaned": len(expired_tokens)}
+    cleaned = cleanup_expired_qr_codes(db)
+    return {"cleaned": cleaned}

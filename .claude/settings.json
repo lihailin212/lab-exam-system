@@ -13,7 +13,9 @@
       "Bash(done)",
       "Bash(python -c \"import pandas; print\\(''pandas ok''\\)\")",
       "Bash(python -m py_compile app/routers/qrcode_login.py)",
-      "Bash(python -c \"from app.routers import qrcode_login\")"
+      "Bash(python -c \"from app.routers import qrcode_login\")",
+      "Read(//c/Users/lihailin/.ssh/**)",
+      "Bash(curl -s https://lab-exam-api.onrender.com/api/qrcode/exam/verify/test123456)"
     ]
   }
 }

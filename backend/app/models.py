@@ -37,6 +37,15 @@ class Exam(Base):
     shared_option_groups = relationship("SharedOptionGroup", back_populates="exam", cascade="all, delete-orphan")
 
 
+class ExamQRCode(Base):
+    __tablename__ = "exam_qr_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    qr_token = Column(String(100), unique=True, index=True, nullable=False)
+    exam_id = Column(Integer, ForeignKey("exams.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Question(Base):
     __tablename__ = "questions"
 

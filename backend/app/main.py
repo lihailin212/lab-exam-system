@@ -62,6 +62,21 @@ async def startup_event():
                 conn.commit()
                 print("Migration: Added total_questions column to exams table")
 
+        # Check if exam_qr_codes table exists and create if needed
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exam_qr_codes'")
+        if not cursor.fetchone():
+            cursor.execute("""
+                CREATE TABLE exam_qr_codes (
+                    id INTEGER PRIMARY KEY,
+                    qr_token VARCHAR(100) UNIQUE NOT NULL,
+                    exam_id INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id)
+                )
+            """)
+            conn.commit()
+            print("Migration: Created exam_qr_codes table")
+
         conn.close()
     except Exception as e:
         print(f"Migration warning: {e}")
