@@ -119,6 +119,7 @@ const formRef = ref(null)
 // Verify QR code
 const verifyQRCode = async () => {
   const token = route.query.token
+  console.log('QR Token:', token)
   if (!token) {
     error.value = '无效的二维码'
     loading.value = false
@@ -126,11 +127,16 @@ const verifyQRCode = async () => {
   }
 
   try {
-    const response = await fetch(`https://lab-exam-api.onrender.com/api/qrcode/exam/verify/${token}`)
+    const url = `https://lab-exam-api.onrender.com/api/qrcode/exam/verify/${token}`
+    console.log('Verifying URL:', url)
+    const response = await fetch(url)
+    console.log('Response status:', response.status)
     const data = await response.json()
+    console.log('Response data:', data)
     examInfo.value = data
     loading.value = false
   } catch (err) {
+    console.error('Verify error:', err)
     error.value = '验证二维码失败，请稍后重试'
     loading.value = false
   }
