@@ -174,7 +174,7 @@
     </el-dialog>
 
     <!-- Import Dialog -->
-    <el-dialog v-model="showImportDialog" title="批量导入题目" width="600px">
+    <el-dialog v-model="showImportDialog" :title="`批量导入${importType === 'shared_options' ? '共用选项组' : '题目'}`" width="600px">
       <div class="import-tip">
         <p>请上传 Excel、Word 或 TXT 文件进行批量导入</p>
         <el-button type="primary" link @click="downloadTemplate">
@@ -236,6 +236,8 @@
     <el-dialog v-model="sharedOptionDialogVisible" title="管理共用选项组" width="800px">
       <div class="shared-option-header">
         <el-button type="primary" @click="showAddSharedOptionGroup">新建选项组</el-button>
+        <el-button type="success" @click="handleImportSharedOptions">导入选项组</el-button>
+        <el-button type="info" @click="handleExportSharedOptions">导出选项组</el-button>
       </div>
 
       <el-table :data="sharedOptionGroups" v-loading="sharedOptionLoading" border>
@@ -324,6 +326,7 @@ const form = reactive({
 })
 
 const showImportDialog = ref(false)
+const importType = ref('questions') // 'questions' or 'shared_options'
 const importRef = ref(null)
 const selectedFile = ref(null)
 const importing = ref(false)
@@ -692,6 +695,43 @@ const saveSharedOptionGroup = async () => {
   } finally {
     savingSharedGroup.value = false
   }
+}
+
+const handleImportSharedOptions = () => {
+  openImportDialog.value = true
+  importType.value = 'shared_options'
+}
+
+const handleExportSharedOptions = () => {
+  if (sharedOptionGroups.value.length === 0) {
+    ElMessage.warning('没有选项组可导出')
+    return
+  }
+
+  const data = sharedOptionGroups.value.map(group => ({
+    '选项组名称': group.name,
+    '选项列表': group.options.map(opt => `${opt.id}:${opt.content}`).join('|')
+  }))
+
+  const csvContent = '\uFEFF' + [
+    Object.keys(data[0]).join(','),
+    ...data.map(row => Object.values(row).map(cell => {
+      const cellStr = String(cell).replace(/"/g, '\"\"')
+      if (cellStr.includes(',') || cellStr.includes('\n') || cellStr.includes('"')) {
+        return `"${cellStr}"`
+      }
+      return cellStr
+    }).join(','))
+  ].join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `共用选项组_${examInfo.value?.title || '考核'}_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+
+  ElMessage.success(`成功导出 ${sharedOptionGroups.value.length} 个选项组`)
 }
 
 const deleteSharedOptionGroup = async (group) => {

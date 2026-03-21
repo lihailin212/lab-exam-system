@@ -305,3 +305,42 @@ def delete_shared_option_group_api(
     if not success:
         raise HTTPException(status_code=404, detail="选项组不存在")
     return {"message": "删除成功"}
+
+
+@router.post("/import/shared-options/exam/{exam_id}")
+async def import_shared_options(
+    exam_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Import shared option groups from uploaded file"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="考核不存在")
+
+    try:
+        file_content = await file.read()
+        from app.utils.importer import import_shared_options
+        groups_data, errors = import_shared_options(file_content, file.filename)
+
+        if not groups_data and errors:
+            raise HTTPException(
+                status_code=400,
+                detail=f"导入失败: {errors[0].get('error') if errors else '文件格式错误'}"
+            )
+
+        created_groups = []
+        for group_data in groups_data:
+            group = create_shared_option_group(db, exam_id, SharedOptionGroupCreate(**group_data))
+            created_groups.append(group)
+
+        return {
+            "success": True,
+            "message": f"成功导入 {len(created_groups)} 个选项组",
+            "success_count": len(created_groups),
+            "error_count": len(errors),
+            "errors": errors[:10]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
