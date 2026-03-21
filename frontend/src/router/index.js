@@ -8,6 +8,11 @@ const routes = [
     component: () => import('../views/Login.vue')
   },
   {
+    path: '/scan',
+    name: 'ScanConfirm',
+    component: () => import('../views/ScanConfirm.vue')
+  },
+  {
     path: '/',
     name: 'ExamList',
     component: () => import('../views/ExamList.vue'),

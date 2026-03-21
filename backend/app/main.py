@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from app.database import engine, Base
-from app.routers import auth, users, exams, questions, records
+from app.routers import auth, users, exams, questions, records, qrcode_login
 from app.models import User
 from app.crud import create_user
 from app.schemas import UserCreate
@@ -37,6 +37,7 @@ app.include_router(users.router)
 app.include_router(exams.router)
 app.include_router(questions.router)
 app.include_router(records.router)
+app.include_router(qrcode_login.router)
 
 
 @app.on_event("startup")

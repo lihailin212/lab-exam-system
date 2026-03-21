@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(python test_import.py)",
+      "Bash(pip list:*)",
+      "Bash(findstr openpyxl:*)",
+      "Bash(python -c \"import openpyxl; print\\(''openpyxl OK''\\)\")",
+      "Bash(git remote:*)",
+      "Bash(for i:*)",
+      "Bash(do echo:*)",
+      "Bash(break)",
+      "Bash(done)",
+      "Bash(python -c \"import pandas; print\\(''pandas ok''\\)\")"
+    ]
+  }
+}

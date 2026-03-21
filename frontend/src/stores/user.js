@@ -14,6 +14,12 @@ export const useUserStore = defineStore('user', () => {
     return res
   }
 
+  const setToken = async (accessToken) => {
+    token.value = accessToken
+    localStorage.setItem('token', accessToken)
+    await fetchUserInfo()
+  }
+
   const fetchUserInfo = async () => {
     try {
       const res = await authAPI.getUserInfo()
@@ -41,6 +47,7 @@ export const useUserStore = defineStore('user', () => {
     login,
     logout,
     fetchUserInfo,
+    setToken,
     isAdmin
   }
 })
