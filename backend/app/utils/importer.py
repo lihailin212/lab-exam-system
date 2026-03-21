@@ -171,7 +171,18 @@ def import_from_docx(file_content: bytes) -> List[Dict[str, Any]]:
 
 def import_from_txt(file_content: bytes, delimiter: str = ",") -> List[Dict[str, Any]]:
     import io
-    content = file_content.decode('utf-8')
+    # Try multiple encodings to support Chinese files
+    encodings = ['utf-8', 'gbk', 'gb2312', 'gb18030']
+    content = None
+    for encoding in encodings:
+        try:
+            content = file_content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if content is None:
+        raise ValueError("无法解析文件编码，请使用 UTF-8、GBK、GB2312 或 GB18030 编码的文件")
     lines = content.strip().split('\n')
     
     questions = []
@@ -281,7 +292,18 @@ def import_shared_options_from_excel(file_content: bytes) -> List[Dict[str, Any]
 def import_shared_options_from_csv(file_content: bytes) -> List[Dict[str, Any]]:
     """Import shared option groups from CSV file"""
     import io
-    content = file_content.decode('utf-8')
+    # Try multiple encodings to support Chinese files
+    encodings = ['utf-8', 'gbk', 'gb2312', 'gb18030']
+    content = None
+    for encoding in encodings:
+        try:
+            content = file_content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if content is None:
+        raise ValueError("无法解析文件编码，请使用 UTF-8、GBK、GB2312 或 GB18030 编码的文件")
     lines = content.strip().split('\n')
 
     groups = []
